@@ -8,7 +8,7 @@ class ProviderFactory
     {
         return match ($provider) {
             'fake' => new FakeProvider(),
-            'eskiz' => new EskizProvider(config('sms.providers.eskiz')),
+            'eskiz' => new EskizProvider($provider->config ?? []),
             default => throw new \InvalidArgumentException("Unknown provider: $provider"),
         };
     }
