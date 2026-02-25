@@ -2,64 +2,64 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreProjectRequest;
+use App\Http\Requests\UpdateProjectRequest;
 use App\Models\Project;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ProjectController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(): JsonResponse
     {
-        //
+        $projects = Project::with('provider:id,name,driver')
+            ->withCount('smsMessages')
+            ->latest()
+            ->paginate(15);
+
+        return response()->json([
+            'success' => true,
+            'data'    => $projects,
+        ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function store(StoreProjectRequest $request): JsonResponse
     {
-        //
+        $project = Project::create($request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project created. Store the api_key safely — it won\'t be shown again in full.',
+            'data'    => $project->load('provider:id,name,driver'),
+        ], 201);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function show(Project $project): JsonResponse
     {
-        //
+        return response()->json([
+            'success' => true,
+            'data'    => $project->load('provider:id,name,driver')->loadCount('smsMessages'),
+        ]);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Project $project)
+    public function update(UpdateProjectRequest $request, Project $project): JsonResponse
     {
-        //
+        $project->update($request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project updated.',
+            'data'    => $project->fresh()->load('provider:id,name,driver'),
+        ]);
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Project $project)
+    public function destroy(Project $project): JsonResponse
     {
-        //
-    }
+        $project->delete(); // cascade deletes sms_messages
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Project $project)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Project $project)
-    {
-        //
+        return response()->json([
+            'success' => true,
+            'message' => 'Project deleted.',
+        ]);
     }
 }

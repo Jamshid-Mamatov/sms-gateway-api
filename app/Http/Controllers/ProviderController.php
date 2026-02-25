@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreProviderRequest;
 use App\Models\Provider;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ProviderController extends Controller
@@ -13,46 +15,50 @@ class ProviderController extends Controller
     public function index()
     {
         //
+        $providers = Provider::withCount('projects')->latest()->get();
+        return response()->json([
+            'success' => true,
+            'data'    => $providers,
+        ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(StoreProviderRequest $request)
     {
-        //
+
+        $provider = Provider::create($request->validated());
+        return response()->json([
+            'success' => true,
+            'data'    => $provider,
+        ]);
     }
 
     /**
      * Display the specified resource.
      */
-    public function show(Provider $provider)
+    public function show(Provider $provider): JsonResponse
     {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Provider $provider)
-    {
-        //
+        return response()->json([
+            'success' => true,
+            'data'    => $provider->loadCount('projects'),
+        ]);
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Provider $provider)
+    public function update(StoreProviderRequest $request, Provider $provider): JsonResponse
     {
-        //
+        $provider->update($request->validated());
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Provider updated successfully.',
+            'data'    => $provider->fresh(),
+        ]);
     }
 
     /**
@@ -60,6 +66,17 @@ class ProviderController extends Controller
      */
     public function destroy(Provider $provider)
     {
-        //
+
+        if($provider->projects()->exists()){
+            return response()->json([
+                'success' => false,
+                'message' => 'Provider has projects, cannot be deleted.',
+            ],422);
+        }
+        $provider->delete();
+        return response()->json([
+            'success' => true,
+            'message' => 'Provider deleted successfully.',
+        ]);
     }
 }
