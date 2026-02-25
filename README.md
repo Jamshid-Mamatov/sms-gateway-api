@@ -1,67 +1,241 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# SMS Gateway API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A Laravel-based SMS Gateway that routes messages from multiple client projects to different SMS providers through a single, unified API endpoint.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Architecture Overview
 
-## Learning Laravel
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+---
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Installation
 
-## Laravel Sponsors
+### 1. Clone & Install
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```bash
+git clone git@github.com:Jamshid-Mamatov/sms-gateway-api.git
+cd sms-gateway
+composer install
+```
 
-### Premium Partners
+### 2. Environment Setup
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+```bash
+cp .env.example .env
+php artisan key:generate
+```
 
-## Contributing
+Edit `.env`:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=sms_gateway
+DB_USERNAME=root
+DB_PASSWORD=secret
 
-## Code of Conduct
+QUEUE_CONNECTION=database
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### 3. Database
 
-## Security Vulnerabilities
+```bash
+php artisan migrate
+php artisan db:seed        # Creates demo providers + projects
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### 4. Register Middleware
 
-## License
+In `app/Http/Kernel.php`, add to `$middlewareAliases`:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-# sms-gateway-api
+```php
+'api.key' => \App\Http\Middleware\AuthenticateApiKey::class,
+```
+
+### 5. Run the Application
+
+```bash
+# Terminal 1 — web server
+php artisan serve
+
+# Terminal 2 — queue worker (required for SMS processing)
+php artisan queue:work --tries=3
+
+# Optional: create the jobs table first if using database queue
+php artisan queue:table && php artisan migrate
+```
+
+---
+
+## API Reference
+
+### Base URL
+```
+http://localhost:8000/api
+```
+
+---
+
+### Admin: Providers
+
+> Manage SMS provider configurations. Protect these routes with admin auth in production.
+
+#### List Providers
+```http
+GET /api/providers
+```
+
+#### Create Provider
+```http
+POST /api/providers
+Content-Type: application/json
+
+{
+  "name": "Eskiz Production",
+  "driver": "eskiz",
+  "config": {
+    "login": "email@example.com",
+    "password": "secret",
+    "from": "4546"
+  },
+  "is_active": true
+}
+```
+**Supported drivers:** `fake` · `eskiz` · `playmobile`
+
+#### Update Provider
+```http
+PUT /api/providers/{id}
+```
+
+#### Delete Provider
+```http
+DELETE /api/providers/{id}
+```
+> Fails if the provider has attached projects.
+
+---
+
+### Admin: Projects
+
+#### List Projects
+```http
+GET /api/projects
+```
+
+#### Create Project
+```http
+POST /api/projects
+Content-Type: application/json
+
+{
+  "name": "E-Commerce",
+  "description": "Order notifications",
+  "provider_id": 1
+}
+```
+**Response includes the generated `api_key` — save it!**
+
+#### Update Project (change provider, name, etc.)
+```http
+PUT /api/projects/{id}
+Content-Type: application/json
+
+{
+  "provider_id": 2
+}
+```
+
+#### Regenerate API Key
+```http
+POST /api/projects/{id}/regenerate-key
+```
+
+---
+
+### Client SMS API
+
+All endpoints require the project API key:
+```
+X-Api-Key: sk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+#### Send SMS
+```http
+POST /api/sms/send
+X-Api-Key: sk_...
+Content-Type: application/json
+
+{
+  "phones": ["+998901234567", "+998901234568"],
+  "message": "Your order #1234 has been confirmed!"
+}
+```
+
+**Response `202 Accepted`:**
+```json
+{
+  "success": true,
+  "message": "2 SMS message(s) queued for delivery.",
+  "data": [
+    { "id": 1, "phone": "+998901234567", "status": "pending" },
+    { "id": 2, "phone": "+998901234568", "status": "pending" }
+  ]
+}
+```
+
+#### SMS History
+```http
+GET /api/sms/history?status=sent&phone=998901&from=2024-01-01&to=2024-12-31&per_page=20
+X-Api-Key: sk_...
+```
+
+**Filter params:**
+
+| Param | Type | Description |
+|---|---|---|
+| `status` | string | `pending` · `sent` · `delivered` · `failed` |
+| `phone` | string | Partial phone number match |
+| `from` | date | Start date `Y-m-d` |
+| `to` | date | End date `Y-m-d` |
+| `per_page` | int | Items per page (max 100, default 15) |
+
+#### Get Single SMS
+```http
+GET /api/sms/{id}
+X-Api-Key: sk_...
+```
+
+---
+
+## SMS Status Flow
+
+```
+pending → sent → delivered
+        ↘ failed
+```
+
+| Status | Meaning |
+|---|---|
+| `pending` | Created, waiting in queue |
+| `sent` | Successfully delivered to provider |
+| `delivered` | Provider confirmed delivery (webhook) |
+| `failed` | All retry attempts exhausted |
+
+---
+
+## Adding a New Provider
+
+1. Create `app/Services/Providers/TwilioProvider.php` implementing `SmsProviderInterface`
+2. Register the driver in `ProviderFactory::make()`:
+   ```php
+   'twilio' => new TwilioProvider($config),
+   ```
+3. Add `'twilio'` to the allowed values in `StoreProviderRequest`
+
+---
